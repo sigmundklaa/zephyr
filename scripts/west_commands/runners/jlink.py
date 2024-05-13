@@ -49,6 +49,7 @@ class JLinkBinaryRunner(ZephyrBinaryRunner):
                  gdbserver='JLinkGDBServer',
                  gdb_host='',
                  gdb_port=DEFAULT_JLINK_GDB_PORT,
+                 endian='little',
                  tui=False, tool_opt=[]):
         super().__init__(cfg)
         self.file = cfg.file
@@ -68,6 +69,7 @@ class JLinkBinaryRunner(ZephyrBinaryRunner):
         self.speed = speed
         self.gdb_host = gdb_host
         self.gdb_port = gdb_port
+        self.endian = endian
         self.tui_arg = ['-tui'] if tui else []
         self.loader = loader
 
@@ -126,6 +128,7 @@ class JLinkBinaryRunner(ZephyrBinaryRunner):
                             dest='reset', nargs=0,
                             action=ToggleAction,
                             help='obsolete synonym for --reset/--no-reset')
+        parser.add_argument('--endian', default='little', help='CPU Endianness')
 
         parser.set_defaults(reset=False)
 
@@ -142,6 +145,7 @@ class JLinkBinaryRunner(ZephyrBinaryRunner):
                                  loader=args.loader,
                                  gdb_host=args.gdb_host,
                                  gdb_port=args.gdb_port,
+                                 endian=args.endian,
                                  tui=args.tui, tool_opt=args.tool_opt)
 
     def print_gdbserver_message(self):
@@ -243,6 +247,7 @@ class JLinkBinaryRunner(ZephyrBinaryRunner):
                        '-speed', self.speed,
                        '-device', self.device,
                        '-silent',
+                       '-endian', self.endian,
                        '-singlerun'] +
                       (['-nogui'] if self.supports_nogui else []) +
                       (['-rtos', plugin_dir] if rtos else []) +
@@ -290,6 +295,7 @@ class JLinkBinaryRunner(ZephyrBinaryRunner):
         lines = [
             'ExitOnError 1',  # Treat any command-error as fatal
             'r',  # Reset and halt the target
+            'BE' if self.endian == 'big' else 'LE',  # Specify endianness
         ]
 
         if self.erase:
