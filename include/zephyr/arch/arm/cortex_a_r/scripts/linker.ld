@@ -274,7 +274,7 @@ SECTIONS
     _app_smem_rom_start = LOADADDR(_APP_SMEM_SECTION_NAME);
 #endif  /* CONFIG_USERSPACE */
 
-    SECTION_DATA_PROLOGUE(_BSS_SECTION_NAME,(NOLOAD), BSS_ALIGN)
+    SECTION_PROLOGUE(_BSS_SECTION_NAME,(NOLOAD), BSS_ALIGN)
     {
         /*
          * For performance, BSS section is assumed to be 4 byte aligned and
