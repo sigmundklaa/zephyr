@@ -79,8 +79,6 @@ _region_min_align = 4;
     . = ALIGN(_region_min_align)
 #endif
 
-#define BSS_ALIGN ALIGN(_region_min_align)
-
 #define MMU_ALIGN    . = ALIGN(_region_min_align)
 
 MEMORY
@@ -282,7 +280,7 @@ SECTIONS
     _app_smem_rom_start = LOADADDR(_APP_SMEM_SECTION_NAME);
 #endif  /* CONFIG_USERSPACE */
 
-    SECTION_DATA_PROLOGUE(_BSS_SECTION_NAME,(NOLOAD), BSS_ALIGN)
+    SECTION_DATA_PROLOGUE(_BSS_SECTION_NAME,(NOLOAD),)
     {
         /*
          * For performance, BSS section is assumed to be 4 byte aligned and
