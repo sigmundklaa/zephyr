@@ -714,10 +714,9 @@ static int mcux_lpuart_callback_set(const struct device *dev, uart_callback_t ca
 	data->callback = NULL;
 	data->cb_data = NULL;
 	data->api_type = LPUART_ASYNC;
-	return mcux_lpuart_configure_async(dev);
-#else
-	return 0;
 #endif
+
+	return mcux_lpuart_configure_async(dev);
 }
 
 static int mcux_lpuart_tx(const struct device *dev, const uint8_t *buf, size_t len,
@@ -1055,7 +1054,7 @@ static int mcux_lpuart_configure_async(const struct device *dev)
 			      mcux_lpuart_async_tx_timeout);
 
 	/* Disable the UART Receiver until the async API provides a buffer to
-	 * to receive into with rx_enable
+	 * receive into with rx_enable
 	 */
 	uart_config.enableRx = false;
 	/* Clearing the fifo of any junk received before the async rx enable was called */
