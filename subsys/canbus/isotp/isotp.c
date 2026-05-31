@@ -346,7 +346,9 @@ static void receive_state_machine(struct isotp_recv_ctx *rctx)
 		}
 
 		k_fifo_cancel_wait(&rctx->fifo);
-		net_buf_unref(rctx->buf);
+		if (rctx->buf != NULL) {
+			net_buf_unref(rctx->buf);
+		}
 		rctx->buf = NULL;
 		rctx->state = ISOTP_RX_STATE_RECYCLE;
 		__fallthrough;
@@ -876,19 +878,19 @@ static size_t get_send_ctx_data_len(struct isotp_send_ctx *sctx)
 	return sctx->is_net_buf ? net_buf_frags_len(sctx->buf) : sctx->len;
 }
 
-static const uint8_t *get_send_ctx_data(struct isotp_send_ctx *sctx)
+static void get_send_ctx_data(struct isotp_send_ctx *sctx, uint8_t *buf, size_t len)
 {
 	if (sctx->is_net_buf) {
-		return sctx->buf->data;
+		net_buf_linearize(buf, len, sctx->buf, 0, len);
 	} else {
-		return sctx->data;
+		memcpy(buf, sctx->data, len);
 	}
 }
 
 static void pull_send_ctx_data(struct isotp_send_ctx *sctx, size_t len)
 {
 	if (sctx->is_net_buf) {
-		net_buf_pull_mem(sctx->buf, len);
+		sctx->buf = net_buf_skip(sctx->buf, len);
 	} else {
 		sctx->data += len;
 		sctx->len -= len;
@@ -901,12 +903,8 @@ static inline int send_sf(struct isotp_send_ctx *sctx)
 	size_t len = get_send_ctx_data_len(sctx);
 	int index = 0;
 	int ret;
-	const uint8_t *data;
 
 	prepare_frame(&frame, &sctx->tx_addr);
-
-	data = get_send_ctx_data(sctx);
-	pull_send_ctx_data(sctx, len);
 
 	if ((sctx->tx_addr.flags & ISOTP_MSG_EXT_ADDR) != 0) {
 		frame.data[index++] = sctx->tx_addr.ext_addr;
@@ -925,7 +923,8 @@ static inline int send_sf(struct isotp_send_ctx *sctx)
 		return -ENOSPC;
 	}
 
-	memcpy(&frame.data[index], data, len);
+	get_send_ctx_data(sctx, &frame.data[index], len);
+	pull_send_ctx_data(sctx, len);
 
 	if (IS_ENABLED(CONFIG_ISOTP_ENABLE_TX_PADDING) ||
 	    (IS_ENABLED(CONFIG_CAN_FD_MODE) && (sctx->tx_addr.flags & ISOTP_MSG_FDF) != 0 &&
@@ -952,7 +951,6 @@ static inline int send_ff(struct isotp_send_ctx *sctx)
 	int index = 0;
 	size_t len = get_send_ctx_data_len(sctx);
 	int ret;
-	const uint8_t *data;
 
 	prepare_frame(&frame, &sctx->tx_addr);
 
@@ -978,9 +976,8 @@ static inline int send_ff(struct isotp_send_ctx *sctx)
 	 * although it's not part of the FF frame
 	 */
 	sctx->sn = 1;
-	data = get_send_ctx_data(sctx);
+	get_send_ctx_data(sctx, &frame.data[index], sctx->tx_addr.dl - index);
 	pull_send_ctx_data(sctx, sctx->tx_addr.dl - index);
-	memcpy(&frame.data[index], data, sctx->tx_addr.dl - index);
 
 	ret = can_send(sctx->can_dev, &frame, K_MSEC(ISOTP_A_TIMEOUT_MS), send_can_tx_cb, sctx);
 	return ret;
@@ -993,7 +990,6 @@ static inline int send_cf(struct isotp_send_ctx *sctx)
 	int ret;
 	int len;
 	int rem_len;
-	const uint8_t *data;
 
 	prepare_frame(&frame, &sctx->tx_addr);
 
@@ -1007,8 +1003,7 @@ static inline int send_cf(struct isotp_send_ctx *sctx)
 	rem_len = get_send_ctx_data_len(sctx);
 	len = MIN(rem_len, sctx->tx_addr.dl - index);
 	rem_len -= len;
-	data = get_send_ctx_data(sctx);
-	memcpy(&frame.data[index], data, len);
+	get_send_ctx_data(sctx, &frame.data[index], len);
 
 	if (IS_ENABLED(CONFIG_ISOTP_ENABLE_TX_PADDING) ||
 	    (IS_ENABLED(CONFIG_CAN_FD_MODE) && (sctx->tx_addr.flags & ISOTP_MSG_FDF) != 0 &&
@@ -1039,7 +1034,7 @@ static inline int send_cf(struct isotp_send_ctx *sctx)
 #ifdef CONFIG_ISOTP_ENABLE_CONTEXT_BUFFERS
 static inline void free_send_ctx(struct isotp_send_ctx **sctx)
 {
-	if ((*sctx)->is_net_buf) {
+	if ((*sctx)->is_net_buf && (*sctx)->buf != NULL) {
 		net_buf_unref((*sctx)->buf);
 		(*sctx)->buf = NULL;
 	}
